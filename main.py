@@ -18,7 +18,14 @@ import logging
 import datetime
 from typing import Dict, Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def home():
+    return {"status": "ok"}
+
 from telegram import (
     Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 )
@@ -236,5 +243,6 @@ async def webhook(request: Request):
     update = Update.de_json(data, bot)
     dispatcher.process_update(update)
     return {"ok": True}
+
 
 
