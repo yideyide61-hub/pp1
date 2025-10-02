@@ -11,20 +11,15 @@ Attendance Bot with FastAPI webhook (python-telegram-bot v13.15)
  - /report and /fine admin commands
  - Multilingual: /zh /en /km
  - Auto-leaves if added by non-admin
+ - Runs 24/7 with FastAPI + uvicorn
 """
 
 import os
 import logging
 import datetime
 from typing import Dict, Any
-import imghdr
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/")
-def home():
-    return {"status": "ok"}
+from fastapi import FastAPI, Request
+import asyncio
 
 from telegram import (
     Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -131,8 +126,6 @@ def handle_new_chat_members(update: Update, context: CallbackContext):
             if adder not in ADMIN_USER_IDS:
                 context.bot.send_message(chat_id=chat.id, text="⚠️ Only admins can add me. Leaving...")
                 context.bot.leave_chat(chat.id)
-                for admin in ADMIN_USER_IDS:
-                    context.bot.send_message(admin, f"❌ Bot was added to {chat.title} by unauthorized user {update.message.from_user.full_name}")
 
 # ================= CALLBACK HANDLER =================
 def button_handler(update: Update, context: CallbackContext):
@@ -151,8 +144,10 @@ def button_handler(update: Update, context: CallbackContext):
         query.answer(f"Started {query.data}")
         limit = ACTIVITY_LIMITS[query.data]["limit_min"]
         # schedule warning + timeout
-        context.job_queue.run_once(send_warning_job, limit*60 - 60, context=(update.effective_chat.id, query.from_user.id, query.data))
-        context.job_queue.run_once(timeout_job, limit*60, context=(update.effective_chat.id, query.from_user.id, query.data))
+        context.job_queue.run_once(send_warning_job, limit*60 - 60,
+                                   context=(update.effective_chat.id, query.from_user.id, query.data))
+        context.job_queue.run_once(timeout_job, limit*60,
+                                   context=(update.effective_chat.id, query.from_user.id, query.data))
     elif query.data == "back":
         if not user["activities"]:
             query.answer(NAMES["no_activity"][user["lang"]])
@@ -178,7 +173,7 @@ def daily_reset_job(context: CallbackContext):
     for chat_id, users in group_data.items():
         for u in users.values():
             u["daily_fines"] = 0
-    context.bot.send_message(list(group_data.keys())[0], "🔄 Daily reset complete.")
+        context.bot.send_message(chat_id, "🔄 Daily reset complete.")
 
 def monthly_report_job(context: CallbackContext):
     for chat_id, users in group_data.items():
@@ -230,7 +225,8 @@ dispatcher.add_handler(CommandHandler("fine", cmd_fine))
 job_queue = JobQueue(bot)
 job_queue.set_dispatcher(dispatcher)
 job_queue.run_daily(daily_reset_job, time=datetime.time(hour=DAILY_RESET_HOUR, minute=DAILY_RESET_MIN))
-job_queue.run_monthly(monthly_report_job, day=MONTHLY_REPORT_DAY, time=datetime.time(hour=MONTHLY_REPORT_HOUR, minute=MONTHLY_REPORT_MIN))
+job_queue.run_monthly(monthly_report_job, day=MONTHLY_REPORT_DAY,
+                      time=datetime.time(hour=MONTHLY_REPORT_HOUR, minute=MONTHLY_REPORT_MIN))
 job_queue.start()
 
 @app.on_event("startup")
@@ -244,6 +240,4 @@ async def webhook(request: Request):
     dispatcher.process_update(update)
     return {"ok": True}
 
-
-
-
+# Run with: uvicorn main:app --host 0.0.0.0 --port 8000
