@@ -17,7 +17,7 @@ import os
 import logging
 import datetime
 from typing import Dict, Any
-
+import imghdr
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -243,6 +243,7 @@ async def webhook(request: Request):
     update = Update.de_json(data, bot)
     dispatcher.process_update(update)
     return {"ok": True}
+
 
 
 
