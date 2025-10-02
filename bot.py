@@ -1,4 +1,5 @@
 # main.py
+app = FastAPI()
 """
 Attendance Bot with FastAPI webhook (python-telegram-bot v13.15)
 
@@ -236,3 +237,4 @@ async def webhook(request: Request):
     update = Update.de_json(data, bot)
     dispatcher.process_update(update)
     return {"ok": True}
+
